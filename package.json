@@ -20,7 +20,8 @@
     "check": "npm run typecheck && npm run lint && npm test",
     "deploy:pages": "node scripts/deploy-pages.mjs",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "clean": "node scripts/clean.mjs"
   },
   "dependencies": {
     "fflate": "0.8.3",
@@ -51,5 +52,13 @@
     "vite": "8.0.13",
     "vitest": "3.2.4",
     "ws": "8.22.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/s4lmon778/SpeedGate.git"
+  },
+  "homepage": "https://s4lmon778.github.io/SpeedGate/",
+  "bugs": {
+    "url": "https://github.com/s4lmon778/SpeedGate/issues"
   }
 }

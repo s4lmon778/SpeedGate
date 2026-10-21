@@ -1,6 +1,8 @@
 # Security policy
 
-SpeedGate is experimental. The actively maintained version is the default branch.
+SpeedGate is experimental. Development is paused as of October 21, 2026.
+The default branch contains the latest source; archived comparison builds are
+unsupported. Security reports have no guaranteed response time.
 
 ## Report a vulnerability
 

@@ -9,6 +9,16 @@ coverage/
 *.tsbuildinfo
 *.log
 
-# Generated local code graph; keep its small ignore policy only.
-.codegraph/*
-!.codegraph/.gitignore
+# Generated indexes and tool caches.
+.codegraph/
+.cache/
+.vite/
+
+# Local credentials and private key material.
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.local
+Thumbs.db

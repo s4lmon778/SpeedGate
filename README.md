@@ -24,7 +24,7 @@ SpeedGate moves files between computers, phones, and tablets using their browser
 
 The app is a static **TypeScript / React / Vite** build hosted on GitHub Pages. **PeerJS** exchanges connection metadata for six-digit pairing; it carries no file payloads. No native app, account, cloud media storage, or TURN relay is required.
 
-> **Status:** experimental. The current app is **0.3.36**. Automated checks exercise integrity and recovery; browser capabilities, available storage, and network policies still determine usability. Large-file and physical-device boundaries are documented below.
+> **Status:** experimental; development is paused as of October 21, 2026. The current app is **0.3.36**. See the [maintenance notes](docs/MAINTENANCE.md) before resuming work. Automated checks exercise integrity and recovery; browser capabilities, available storage, and network policies still determine usability. Large-file and physical-device boundaries are documented below.
 
 Android senders have **Choose photos & videos** for the media library and **Choose files** for documents. Direct **Save to Photos folder** appears only when the browser supports choosing a local folder; older Chrome uses verified downloads with Photos device-folder backup. Updating the browser can enable the folder option without changing the Android system.
 
@@ -62,7 +62,7 @@ their original branding and provenance.
   <p><sub>A real synthetic-file transfer, with step captions and click highlights. Playback is edited for instruction.</sub></p>
 </div>
 
-[Watch or download the 29-second video](docs/assets/quick-start.mp4) · [Recording details](docs/assets/README.md#quick-start-walkthrough)
+[Watch or download the 27-second video](docs/assets/quick-start.mp4) · [Recording details](docs/assets/README.md#quick-start-walkthrough)
 
 1. Open **[SpeedGate](https://s4lmon778.github.io/SpeedGate/)** on both devices, using a trusted network that permits connections between them.
 2. On the destination device, choose **Receive files**, optionally choose a destination folder, and click **Create a connection**.
@@ -82,7 +82,7 @@ See the [usage guide](docs/USAGE.md) for saving modes and storage behavior, or [
 <details>
 <summary><strong>Interface previews — desktop and mobile</strong></summary>
 
-Screenshots show the 0.3.13 interface with empty queues, including paired saving controls and expandable help.
+Screenshots show the SpeedGate 0.3.36 interface with empty queues, including saving controls and expandable help.
 
 ![SpeedGate desktop interface](docs/assets/desktop.png)
 

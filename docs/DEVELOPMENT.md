@@ -11,13 +11,14 @@ npm run dev
 
 Open `http://127.0.0.1:8787`. Use separate browser profiles for sender and receiver tests.
 
-| Command                | Purpose                                            |
-| ---------------------- | -------------------------------------------------- |
-| `npm run check`        | TypeScript, ESLint, and unit/integration tests     |
-| `npm run build`        | Production static build                            |
-| `npm run test:browser` | Real peer transfers and browser integration checks |
-| `npm start`            | Serve the production build locally                 |
-| `npm run format:check` | Check repository formatting                        |
+| Command                | Purpose                                                 |
+| ---------------------- | ------------------------------------------------------- |
+| `npm run check`        | TypeScript, ESLint, and unit/integration tests          |
+| `npm run build`        | Production static build                                 |
+| `npm run test:browser` | Real peer transfers and browser integration checks      |
+| `npm run clean`        | Remove generated builds, reports, and local tool caches |
+| `npm start`            | Serve the production build locally                      |
+| `npm run format:check` | Check repository formatting                             |
 
 Install browser binaries with `npx playwright install chromium firefox webkit` before browser tests. Playwright starts a production preview when needed; build first. Automated six-digit connection fixtures use an isolated PeerServer and normal browser privacy defaults. Manual-pairing and compatibility-storage fixtures expose LAN candidates to separate persistence tests from mDNS discovery. Those test settings do not certify native browser networking.
 

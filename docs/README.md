@@ -8,6 +8,7 @@
 | [Engineering decisions](ENGINEERING.md) | Design tradeoffs with source links and regression evidence                             |
 | [Development](DEVELOPMENT.md)           | Local setup, checks, browser fixtures, and legacy-engine testing                       |
 | [Deployment](DEPLOYMENT.md)             | GitHub Pages, other static hosts, custom signaling, and origin changes                 |
+| [Maintenance](MAINTENANCE.md)           | Paused status, repository hygiene, and resuming development                            |
 | [Validation record](VALIDATION.md)      | Completed checks by release and remaining hardware validation                          |
 
 Current screenshots, a recorded controls demo, and a connection diagram live in `assets/`. Their provenance and reproduction steps are in [the asset guide](assets/README.md). Screenshots and the demo use empty queues and contain no personal transfer data. Historical technical results remain in the validation record.

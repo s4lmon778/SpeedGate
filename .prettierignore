@@ -4,3 +4,7 @@ test-results/
 playwright-report/
 package-lock.json
 LICENSE
+coverage/
+.codegraph/
+.cache/
+.vite/

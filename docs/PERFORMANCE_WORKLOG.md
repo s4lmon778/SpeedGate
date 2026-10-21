@@ -1431,7 +1431,7 @@ SpeedGate 0.3.36 is deployed from source
 [The Pages workflow](https://github.com/s4lmon778/SpeedGate/actions/runs/38872684023)
 completed successfully. GitHub repository, homepage, source links and current
 branding are SpeedGate. The canonical local checkout is
-`/path/to/SpeedGate`; the old directory name is a compatibility
+`SpeedGate/`; the old directory name is a compatibility
 symlink for existing chat/tool references.
 
 The live metadata, HTML, JavaScript, CSS, both workers and notices match the
