@@ -88,7 +88,7 @@ export default function SpeedGate() {
   const [room, setRoom] = useState<PairRoom>();
   const [savedReport, setSavedReport] = useState(retainedConnectionReport);
   const [code, setCode] = useState('');
-  const [senderAddress, setSenderAddress] = useState('');
+  const [peerAddress, setPeerAddress] = useState('');
   const [response, setResponse] = useState('');
   const [qr, setQr] = useState<{
     offer: string;
@@ -403,7 +403,7 @@ export default function SpeedGate() {
     setRoom(undefined);
     setQr(undefined);
     setResponse('');
-    setSenderAddress('');
+    setPeerAddress('');
     setStatus('Not connected');
     setPaused(false);
   }
@@ -456,7 +456,7 @@ export default function SpeedGate() {
         const transfer = new StripedChannel(
           channel,
           role,
-          pairingMode === 'code' && role === 'receive' ? senderAddress : '',
+          pairingMode === 'code' ? peerAddress : '',
         );
         transport.current = transfer;
         transfer.linkTest.allowed = () =>
@@ -543,7 +543,7 @@ export default function SpeedGate() {
     };
     const conn =
       pairingMode === 'code'
-        ? new CodeConnection(role, events, senderAddress)
+        ? new CodeConnection(role, events, peerAddress)
         : new Connection(role, events);
     connection.current = conn;
     try {
@@ -1226,47 +1226,6 @@ export default function SpeedGate() {
                                   </p>
                                 </div>
                               </div>
-                              {pairingMode === 'code' && (
-                                <details className="lan-fallback">
-                                  <summary>Advanced network settings</summary>
-                                  <p className="hint" id="lan-help">
-                                    Connection details are collected
-                                    automatically. For advanced diagnosis only,
-                                    you can supply the sender’s local IPv4
-                                    address before creating a code. Find it in
-                                    that device’s network settings for its
-                                    current Wi-Fi or wired connection. This can
-                                    help when local device discovery fails; it
-                                    cannot bypass a network that blocks devices.
-                                  </p>
-                                  <label
-                                    className="pairing-label"
-                                    htmlFor="sender-ip"
-                                  >
-                                    Sender’s local IPv4 (optional)
-                                  </label>
-                                  <input
-                                    id="sender-ip"
-                                    className="lan-address"
-                                    type="text"
-                                    inputMode="decimal"
-                                    autoComplete="off"
-                                    spellCheck={false}
-                                    placeholder="192.168.1.20"
-                                    maxLength={15}
-                                    aria-describedby="lan-help"
-                                    value={senderAddress}
-                                    disabled={busy}
-                                    onChange={(event) =>
-                                      setSenderAddress(event.target.value)
-                                    }
-                                  />
-                                  <p className="hint">
-                                    Used only in this tab. No relay, microphone,
-                                    or camera access.
-                                  </p>
-                                </details>
-                              )}
                               <button
                                 className="button primary"
                                 disabled={busy}
@@ -1281,6 +1240,50 @@ export default function SpeedGate() {
                               </button>
                             </>
                           )}
+                          {pairingMode === 'code' && (
+                            <details className="lan-fallback">
+                              <summary>Advanced network settings</summary>
+                              <p className="hint" id="lan-help">
+                                If local discovery fails, enter the other
+                                device’s Wi-Fi or wired IPv4 address before
+                                connecting. Use the iPhone’s address on Windows,
+                                or the Windows address on the iPhone. This tries
+                                a direct route; the network must allow devices
+                                to connect to each other.
+                              </p>
+                              <label
+                                className="pairing-label"
+                                htmlFor="peer-ip"
+                              >
+                                Other device’s local IPv4 (optional)
+                              </label>
+                              <input
+                                id="peer-ip"
+                                className="lan-address"
+                                type="text"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                spellCheck={false}
+                                placeholder="192.168.1.20"
+                                maxLength={15}
+                                aria-describedby="lan-help"
+                                value={peerAddress}
+                                disabled={busy}
+                                onChange={(event) =>
+                                  setPeerAddress(event.target.value)
+                                }
+                              />
+                              <p className="hint">
+                                Used only in this tab. No relay, microphone, or
+                                camera access.
+                              </p>
+                            </details>
+                          )}
+                          <p className="hint">
+                            Allow local-network access if your browser asks. If
+                            previously blocked, allow it in this site’s browser
+                            settings before reconnecting.
+                          </p>
                         </div>
                       ) : (
                         <div className="paired-content">

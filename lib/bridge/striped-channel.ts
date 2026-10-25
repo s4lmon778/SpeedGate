@@ -149,7 +149,7 @@ export class StripedChannel extends EventTarget implements TransferChannel {
   constructor(
     private primary: RTCDataChannel,
     private role: 'send' | 'receive',
-    private senderAddress = '',
+    private peerAddress = '',
   ) {
     super();
     this.linkTest = new PeerLinkTest(
@@ -158,7 +158,7 @@ export class StripedChannel extends EventTarget implements TransferChannel {
       (message) => this.write(this.primary, JSON.stringify(message)),
       () => this.dispatchEvent(new Event('linktestchange')),
     );
-    this.senderAddress = role === 'receive' ? lanAddress(senderAddress) : '';
+    this.peerAddress = lanAddress(peerAddress);
     primary.onmessage = ({ data }) => this.receive(data, false, primary);
     primary.addEventListener('bufferedamountlow', () =>
       this.dispatchEvent(new Event('bufferedamountlow')),
@@ -180,7 +180,7 @@ export class StripedChannel extends EventTarget implements TransferChannel {
       this.scheduler.clear();
       this.peerSourceStatus = undefined;
       this.sourceStatusEnabled = false;
-      this.senderAddress = '';
+      this.peerAddress = '';
       this.dispatchEvent(new Event('close'));
     });
   }
@@ -976,8 +976,8 @@ export class StripedChannel extends EventTarget implements TransferChannel {
       timer: setTimeout(() => this.failLane(lane), 5000),
       failed: false,
       signals: 0,
-      lanRoute: this.senderAddress
-        ? new LanRoute(pc, this.senderAddress)
+      lanRoute: this.peerAddress
+        ? new LanRoute(pc, this.peerAddress)
         : undefined,
     };
     this.lanes.set(index, lane);
@@ -1063,6 +1063,7 @@ export class StripedChannel extends EventTarget implements TransferChannel {
     if (lane.failed || this.stopped) return;
     if (value.candidate) {
       lane.inbox.receive(value.candidate);
+      lane.lanRoute?.receive(value.candidate);
       return;
     }
     if (lane.pc.remoteDescription) return;

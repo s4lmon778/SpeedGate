@@ -619,44 +619,50 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(frame(0, new Uint8Array(FRAME_BYTES + 1)));
     expect(primary.readyState).toBe('closed');
   });
-  it('tries the user-supplied local address on a bulk peer without exporting it', async () => {
-    const primary = new Channel();
-    const transport = new StripedChannel(
-      primary.native(),
-      'receive',
-      '192.168.1.15',
-    );
-    opened.push(transport);
-    primary.receive(
-      JSON.stringify({ type: 'hello', version: 1, stripedTransport: 1 }),
-    );
-    primary.receive(
-      JSON.stringify({
-        type: 'pg-lane',
-        index: 0,
-        candidate: {
-          candidate: 'candidate:x 1 udp 2122260223 hidden.local 12345 typ host',
-          sdpMid: '0',
-          sdpMLineIndex: 0,
-        },
-      }),
-    );
-    const peer = Peer.peers[0];
-    peer.remoteDescription = {
-      type: 'offer',
-      sdp: 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=mid:0\r\na=candidate:x 1 udp 2122260223 hidden.local 12345 typ host\r\n',
-    };
-    await vi.advanceTimersByTimeAsync(250);
-    expect(peer.candidates).toContainEqual({
-      candidate: 'candidate:x 1 udp 2122260223 192.168.1.15 12345 typ host',
-      sdpMid: '0',
-      sdpMLineIndex: 0,
-    });
-    expect(JSON.stringify(transport.snapshot())).not.toContain('192.168.1.15');
-    expect(JSON.stringify(primary.sent)).not.toContain('192.168.1.15');
-    transport.close();
-    expect(vi.getTimerCount()).toBe(0);
-  });
+  it.each(['send', 'receive'] as const)(
+    'tries the user-supplied local address on a %s bulk peer without exporting it',
+    async (role) => {
+      const primary = new Channel();
+      const transport = new StripedChannel(
+        primary.native(),
+        role,
+        '192.168.1.15',
+      );
+      opened.push(transport);
+      primary.receive(
+        JSON.stringify({ type: 'hello', version: 1, stripedTransport: 1 }),
+      );
+      primary.receive(
+        JSON.stringify({
+          type: 'pg-lane',
+          index: 0,
+          candidate: {
+            candidate:
+              'candidate:x 1 udp 2122260223 hidden.local 12345 typ host',
+            sdpMid: '0',
+            sdpMLineIndex: 0,
+          },
+        }),
+      );
+      const peer = Peer.peers[0];
+      peer.remoteDescription = {
+        type: 'offer',
+        sdp: 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=mid:0\r\na=candidate:x 1 udp 2122260223 hidden.local 12345 typ host\r\n',
+      };
+      await vi.advanceTimersByTimeAsync(250);
+      expect(peer.candidates).toContainEqual({
+        candidate: 'candidate:x 1 udp 2122260223 192.168.1.15 12345 typ host',
+        sdpMid: '0',
+        sdpMLineIndex: 0,
+      });
+      expect(JSON.stringify(transport.snapshot())).not.toContain(
+        '192.168.1.15',
+      );
+      expect(JSON.stringify(primary.sent)).not.toContain('192.168.1.15');
+      transport.close();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
   it('retains raw frames when the other client lacks capability support', () => {
     const primary = new Channel(),
       transport = new StripedChannel(primary.native(), 'send');

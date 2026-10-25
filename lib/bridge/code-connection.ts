@@ -92,7 +92,7 @@ export class CodeConnection {
   constructor(
     private role: 'send' | 'receive',
     private events: Events,
-    private senderAddress = '',
+    private peerAddress = '',
   ) {}
 
   private async register(id: string) {
@@ -150,8 +150,7 @@ export class CodeConnection {
   }
 
   async start(input = '') {
-    this.senderAddress =
-      this.role === 'receive' ? lanAddress(this.senderAddress) : '';
+    this.peerAddress = lanAddress(this.peerAddress);
     this.events.status('Preparing six-digit pairing…');
     if (this.role === 'receive') {
       let code = '';
@@ -245,15 +244,16 @@ export class CodeConnection {
       // candidate must wait for the negotiated description rather than fail.
       data.handleMessage = async (message) => {
         if (this.stopped || this.approved) return;
-        if (message.type === 'CANDIDATE')
+        if (message.type === 'CANDIDATE') {
           this.inbox?.receive(message.payload?.candidate);
-        else {
+          this.lanRoute?.receive(message.payload?.candidate);
+        } else {
           await original(message);
           this.inbox?.ready();
         }
       };
-      if (this.senderAddress)
-        this.lanRoute = new LanRoute(data.peerConnection, this.senderAddress);
+      if (this.peerAddress)
+        this.lanRoute = new LanRoute(data.peerConnection, this.peerAddress);
       this.probe = new RouteProbe(
         data.peerConnection,
         () => data.dataChannel,
@@ -272,11 +272,7 @@ export class CodeConnection {
       45000,
     );
     data.on('error', () =>
-      this.fail(
-        new Error(
-          'Could not open a direct route. Connection details were collected automatically. Check the connection report for candidate delivery and browser errors.',
-        ),
-      ),
+      this.fail(new Error(routeFailureMessage(this.probe?.snapshot()))),
     );
     data.on('close', () => {
       if (!this.stopped)
@@ -385,7 +381,7 @@ export class CodeConnection {
     this.probe?.snapshot();
     this.inbox?.stop();
     this.lanRoute?.stop();
-    this.senderAddress = '';
+    this.peerAddress = '';
     this.approved = true;
     clearTimeout(this.timer);
     this.events.connected(this.channel!);
@@ -414,7 +410,7 @@ export class CodeConnection {
     this.probe?.stop();
     this.inbox?.stop();
     this.lanRoute?.stop();
-    this.senderAddress = '';
+    this.peerAddress = '';
     this.stopped = true;
     clearTimeout(this.timer);
     clearTimeout(this.routeTimer);

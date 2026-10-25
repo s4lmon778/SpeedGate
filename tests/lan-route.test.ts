@@ -46,6 +46,75 @@ describe('explicit LAN route', () => {
     ])
       expect(() => lanAddress(address)).toThrow();
   });
+  it('uses trickled mDNS routes that WebKit omits from remote SDP, including routes before the answer', async () => {
+    vi.useFakeTimers();
+    const value = connection('');
+    const description = value.remoteDescription;
+    Object.assign(value, { remoteDescription: undefined });
+    const route = new LanRoute(pc(value), '192.168.1.20');
+    const candidate = {
+      candidate: host.slice(2),
+      sdpMid: 'data',
+      sdpMLineIndex: 0,
+    };
+    route.receive(candidate);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(value.addIceCandidate).not.toHaveBeenCalled();
+    value.remoteDescription = description;
+    await vi.advanceTimersByTimeAsync(250);
+    expect(value.addIceCandidate).toHaveBeenCalledExactlyOnceWith({
+      candidate: host.slice(2).replace('hidden-device.local', '192.168.1.20'),
+      sdpMid: 'data',
+      sdpMLineIndex: 0,
+    });
+    expect(route.added).toBe(1);
+    route.receive(candidate);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(value.addIceCandidate).toHaveBeenCalledOnce();
+    route.stop();
+    route.receive({
+      ...candidate,
+      candidate: candidate.candidate.replace('50987', '50988'),
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(value.addIceCandidate).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('bounds trickle input and matches only the negotiated application section', async () => {
+    vi.useFakeTimers();
+    const value = connection('');
+    const route = new LanRoute(pc(value), '192.168.1.20');
+    for (const invalid of [
+      null,
+      [],
+      {},
+      { candidate: host.slice(2) },
+      { candidate: host.slice(2), sdpMid: 'data', sdpMLineIndex: -1 },
+      { candidate: host.slice(2) + '\r\na=mid:data', sdpMid: 'data' },
+      { candidate: 'candidate:' + 'x'.repeat(1024), sdpMid: 'data' },
+    ])
+      route.receive(invalid);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(value.addIceCandidate).not.toHaveBeenCalled();
+    for (let index = 0; index < 40; index++)
+      route.receive({
+        candidate: host.slice(2).replace('50987', String(50000 + index)),
+        sdpMLineIndex: 0,
+      });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(value.addIceCandidate).toHaveBeenCalledTimes(32);
+    route.stop();
+    const media = connection('');
+    media.remoteDescription.sdp = media.remoteDescription.sdp.replace(
+      'm=application',
+      'm=audio',
+    );
+    const mediaRoute = new LanRoute(pc(media), '192.168.1.20');
+    mediaRoute.receive({ candidate: host.slice(2), sdpMid: 'data' });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(media.addIceCandidate).not.toHaveBeenCalled();
+    mediaRoute.stop();
+  });
   it('adds only the negotiated UDP host route, preserves credentials/mid/port, and deduplicates', async () => {
     vi.useFakeTimers();
     const value = connection(

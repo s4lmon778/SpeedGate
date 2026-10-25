@@ -24,7 +24,7 @@ SpeedGate moves files between computers, phones, and tablets using their browser
 
 The app is a static **TypeScript / React / Vite** build hosted on GitHub Pages. **PeerJS** exchanges connection metadata for six-digit pairing; it carries no file payloads. No native app, account, cloud media storage, or TURN relay is required.
 
-> **Status:** experimental; development is paused as of October 21, 2026. The current app is **0.3.36**. See the [maintenance notes](docs/MAINTENANCE.md) before resuming work. Automated checks exercise integrity and recovery; browser capabilities, available storage, and network policies still determine usability. Large-file and physical-device boundaries are documented below.
+> **Status:** experimental; the current app is **0.3.37**, with a connection-setup fix released October 24, 2026. The 0.3.36 transfer performance settings are retained. See the [maintenance notes](docs/MAINTENANCE.md) before resuming work. Automated checks exercise integrity and recovery; browser capabilities, available storage, and network policies still determine usability. Large-file and physical-device boundaries are documented below.
 
 Android senders have **Choose photos & videos** for the media library and **Choose files** for documents. Direct **Save to Photos folder** appears only when the browser supports choosing a local folder; older Chrome uses verified downloads with Photos device-folder backup. Updating the browser can enable the folder option without changing the Android system.
 

@@ -32,6 +32,7 @@ for (const mode of [
   'automatic',
   'blocked',
   'explicit',
+  'explicit-sender',
   'early',
   'indexeddb',
   'safari-receiver',
@@ -39,15 +40,15 @@ for (const mode of [
   test(
     mode === 'blocked'
       ? 'six-digit pairing with blocked discovery fails without transferring bytes'
-      : `six-digit pairing${mode === 'explicit' ? ' with explicit LAN fallback' : mode === 'early' ? ' with candidates before answer' : mode === 'indexeddb' ? ' with compatibility storage' : mode === 'safari-receiver' ? ' into WebKit compatibility storage' : ''} requires approval, transfers verified bytes, and consumes the code`,
-    async ({ browserName }) => {
+      : `six-digit pairing${mode === 'explicit' ? ' with explicit LAN fallback' : mode === 'explicit-sender' ? ' with sender-side LAN fallback' : mode === 'early' ? ' with candidates before answer' : mode === 'indexeddb' ? ' with compatibility storage' : mode === 'safari-receiver' ? ' into WebKit compatibility storage' : ''} requires approval, transfers verified bytes, and consumes the code`,
+    async ({ browserName }, testInfo) => {
       const safariReceiver = mode === 'safari-receiver';
       test.skip(
         safariReceiver && browserName !== 'webkit',
         'One actual WebKit receiving scenario.',
       );
-      const explicitLan = mode === 'explicit';
-      const blockedLan = mode === 'blocked' || mode === 'explicit';
+      const explicitLan = ['explicit', 'explicit-sender'].includes(mode);
+      const blockedLan = mode === 'blocked' || explicitLan;
       test.skip(
         mode === 'blocked' && browserName !== 'chromium',
         'One negative control is sufficient for the injected route failure.',
@@ -199,19 +200,23 @@ for (const mode of [
         await receiver
           .getByRole('button', { name: 'Receive files', exact: true })
           .click();
+        const fallbackDevice = mode === 'explicit-sender' ? sender : receiver;
         if (explicitLan) {
-          await receiver
+          await fallbackDevice
             .getByText('Advanced network settings', { exact: true })
             .click();
-          await receiver
-            .getByLabel('Sender’s local IPv4 (optional)', { exact: true })
+          await fallbackDevice
+            .getByLabel('Other device’s local IPv4 (optional)', { exact: true })
             .fill(lanAddress!);
-          await receiver.locator('.connection-panel').screenshot({
+          await fallbackDevice.locator('.connection-panel').screenshot({
             path: `test-results/speedgate-lan-${browserName}.png`,
             mask: [
-              receiver.getByLabel('Sender’s local IPv4 (optional)', {
-                exact: true,
-              }),
+              fallbackDevice.getByLabel(
+                'Other device’s local IPv4 (optional)',
+                {
+                  exact: true,
+                },
+              ),
             ],
           });
         }
@@ -379,9 +384,29 @@ for (const mode of [
           expect(signals.join('')).not.toContain(hash);
           return;
         }
-        await expect(
-          sender.getByText('Connected', { exact: true }),
-        ).toBeVisible({ timeout: 45000 });
+        try {
+          await expect(
+            sender.getByText('Connected', { exact: true }),
+          ).toBeVisible({ timeout: 45000 });
+        } catch (error) {
+          for (const [name, page] of [
+            ['sender', sender],
+            ['receiver', receiver],
+          ] as const) {
+            const report = page.getByLabel('Connection report', {
+              exact: true,
+            });
+            if (!(await report.isVisible()))
+              await page
+                .getByText('Connection diagnostics', { exact: true })
+                .click();
+            await testInfo.attach(`${name}-route.json`, {
+              body: await report.innerText(),
+              contentType: 'application/json',
+            });
+          }
+          throw error;
+        }
         await sender
           .getByRole('button', { name: 'Send files', exact: true })
           .last()
@@ -561,10 +586,10 @@ for (const mode of [
         }
 
         if (explicitLan) {
-          await receiver
+          await fallbackDevice
             .getByText('Connection diagnostics', { exact: true })
             .click();
-          const report = await receiver
+          const report = await fallbackDevice
             .getByLabel('Connection report', { exact: true })
             .innerText();
           expect(JSON.parse(report).lanCandidatesAdded).toBeGreaterThan(0);
@@ -988,7 +1013,7 @@ test('responsive screen exposes primary actions with no overflow', async ({
     .click();
   await page.getByText('Advanced network settings', { exact: true }).click();
   await expect(
-    page.getByLabel('Sender’s local IPv4 (optional)', { exact: true }),
+    page.getByLabel('Other device’s local IPv4 (optional)', { exact: true }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -1019,7 +1044,7 @@ test('text enlargement keeps controls and page width usable', async ({
       .click();
     await page.getByText('Advanced network settings', { exact: true }).click();
     await expect(
-      page.getByLabel('Sender’s local IPv4 (optional)', { exact: true }),
+      page.getByLabel('Other device’s local IPv4 (optional)', { exact: true }),
     ).toBeVisible();
     expect(
       await page.evaluate(

@@ -1,7 +1,8 @@
 # Maintenance notes
 
-Development is paused as of October 21, 2026. SpeedGate 0.3.36 remains
-experimental; the live app and documented browser/device limits still apply.
+SpeedGate 0.3.37 adds an October 24, 2026 connection-setup fix after the
+October 21 pause. The 0.3.36 transfer performance settings are retained.
+The app remains experimental; documented browser/device limits still apply.
 There is no committed schedule for further work or security fixes.
 
 ## Repository layout

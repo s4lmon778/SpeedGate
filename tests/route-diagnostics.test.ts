@@ -5,7 +5,10 @@ import {
   type RouteDiagnostics,
 } from '../lib/bridge/route-diagnostics';
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 function connection() {
   return Object.assign(new EventTarget(), {
     signalingState: 'stable',
@@ -37,6 +40,75 @@ function connection() {
   });
 }
 describe('local route diagnostics', () => {
+  it('observes local-network permission changes once and detaches on stop', async () => {
+    vi.useFakeTimers();
+    const permission = Object.assign(new EventTarget(), { state: 'prompt' });
+    const query = vi.fn().mockResolvedValue(permission);
+    vi.stubGlobal('navigator', { permissions: { query } });
+    const update = vi.fn();
+    const probe = new RouteProbe(
+      connection() as unknown as RTCPeerConnection,
+      () => undefined,
+      update,
+    );
+    await Promise.resolve();
+    expect(probe.snapshot().localNetworkPermission).toBe('prompt');
+    permission.state = 'denied';
+    permission.dispatchEvent(new Event('change'));
+    expect(probe.snapshot().localNetworkPermission).toBe('denied');
+    expect(routeFailureMessage(probe.snapshot())).toContain(
+      'Local-network access is blocked',
+    );
+    permission.state = 'granted';
+    permission.dispatchEvent(new Event('change'));
+    expect(probe.snapshot().localNetworkPermission).toBe('granted');
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(query).toHaveBeenCalledExactlyOnceWith({ name: 'local-network' });
+    probe.stop();
+    const count = update.mock.calls.length;
+    permission.dispatchEvent(new Event('change'));
+    expect(update).toHaveBeenCalledTimes(count);
+  });
+  it('keeps normal discovery when permission queries are unsupported or finish after stop', async () => {
+    vi.useFakeTimers();
+    const query = vi.fn().mockRejectedValue(new TypeError('unsupported'));
+    vi.stubGlobal('navigator', { permissions: { query } });
+    const pc = connection();
+    const probe = new RouteProbe(
+      pc as unknown as RTCPeerConnection,
+      () => undefined,
+      vi.fn(),
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(probe.snapshot().localNetworkPermission).toBe('unavailable');
+    expect(pc.getStats).toHaveBeenCalledOnce();
+    probe.stop();
+    let resolve!: (status: PermissionStatus) => void;
+    query.mockReturnValue(
+      new Promise<PermissionStatus>((done) => {
+        resolve = done;
+      }),
+    );
+    const update = vi.fn();
+    const stopped = new RouteProbe(
+      pc as unknown as RTCPeerConnection,
+      () => undefined,
+      update,
+    );
+    stopped.stop();
+    const count = update.mock.calls.length;
+    const permission = Object.assign(new EventTarget(), {
+      state: 'denied' as PermissionState,
+      name: 'local-network',
+      onchange: null,
+    });
+    const add = vi.spyOn(permission, 'addEventListener');
+    resolve(permission);
+    await Promise.resolve();
+    expect(add).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(count);
+  });
+
   it('records route counts without retaining addresses, SDP, or identifiers', async () => {
     vi.useFakeTimers();
     const pc = connection(),
@@ -209,6 +281,32 @@ describe('route failure explanations', () => {
     expect(message).toContain('could not reach either configured STUN');
     expect(message).toContain('networks may block');
     expect(message).not.toContain('is blocked');
+  });
+
+  it('explains the Windows/iPhone report without treating partial STUN errors as total failure', () => {
+    const message = routeFailureMessage({
+      ...failed,
+      localCandidates: { host: 1, srflx: 1, prflx: 0, relay: 0 },
+      remoteCandidates: { host: 2, srflx: 2, prflx: 0, relay: 0 },
+      remoteMdns: 2,
+      candidateDelivery: {
+        received: 4,
+        queued: 0,
+        added: 4,
+        rejected: 0,
+        errors: {},
+      },
+    });
+    expect(message).toContain('Pairing succeeded');
+    expect(message).toContain('Windows Firewall');
+    expect(message).toContain('Advanced network settings');
+    expect(message).toContain('Personal Hotspot');
+    expect(message).not.toContain('could not reach either');
+    expect(message).not.toContain('is blocked');
+    expect(message).toContain('No file transfer started');
+    expect(
+      routeFailureMessage({ ...failed, lanCandidatesAdded: 1 }),
+    ).not.toContain('enter the other device');
   });
 
   it('distinguishes an absent answer from a failure after description exchange', () => {

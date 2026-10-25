@@ -88,6 +88,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('six-digit code pairing', () => {
@@ -129,6 +130,68 @@ describe('six-digit code pairing', () => {
     expect(JSON.stringify(c.room)).not.toContain(address);
     expect(vi.getTimerCount()).toBe(1); // Live, address-free route diagnostics.
     await c.stop();
+  });
+  it('tries the receiver address on the sender without bypassing approval', async () => {
+    const pc = Object.assign(new EventTarget(), {
+      signalingState: 'stable',
+      iceConnectionState: 'checking',
+      iceGatheringState: 'complete',
+      connectionState: 'connecting',
+      localDescription: undefined,
+      remoteDescription: {
+        sdp: 'm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=mid:data\r\na=candidate:1 1 udp 2122260223 receiver.local 50000 typ host\r\n',
+      },
+      addIceCandidate: vi.fn().mockResolvedValue(undefined),
+      getStats: vi.fn().mockResolvedValue(new Map()),
+    });
+    const data = Object.assign(new Data(), { peerConnection: pc });
+    state.dataFactory = () => data;
+    const e = events();
+    const c = new CodeConnection('send', e, '192.168.1.21');
+    await c.start('000042');
+    await vi.advanceTimersByTimeAsync(250);
+    expect(pc.addIceCandidate).toHaveBeenCalledExactlyOnceWith({
+      candidate: 'candidate:1 1 udp 2122260223 192.168.1.21 50000 typ host',
+      sdpMid: 'data',
+      sdpMLineIndex: 0,
+    });
+    data.emit('open');
+    expect(e.connected).not.toHaveBeenCalled();
+    expect(JSON.stringify(state.peers[0].options)).not.toContain(
+      '192.168.1.21',
+    );
+    expect(JSON.stringify(c.room)).not.toContain('192.168.1.21');
+    await c.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('explains a denied local-network permission on an early data connection error', async () => {
+    const permission = Object.assign(new EventTarget(), { state: 'denied' });
+    vi.stubGlobal('navigator', {
+      permissions: { query: vi.fn().mockResolvedValue(permission) },
+    });
+    const pc = Object.assign(new EventTarget(), {
+      signalingState: 'stable',
+      iceConnectionState: 'failed',
+      iceGatheringState: 'complete',
+      connectionState: 'failed',
+      localDescription: { sdp: '' },
+      remoteDescription: { sdp: '' },
+      getStats: vi.fn().mockResolvedValue(new Map()),
+    });
+    const data = Object.assign(new Data(), { peerConnection: pc });
+    state.dataFactory = () => data;
+    const e = events();
+    const c = new CodeConnection('send', e);
+    await c.start('000042');
+    await Promise.resolve();
+    data.emit('error', new Error('native connection failure'));
+    expect(e.error.mock.calls[0][0].message).toContain(
+      'Local-network access is blocked',
+    );
+    expect(e.connected).not.toHaveBeenCalled();
+    expect(c.room?.diagnostics?.localNetworkPermission).toBe('denied');
+    expect(state.peers[0].destroyed).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
   });
   it('accepts six digits, leading zeroes, spaced input, and short fragment links', () => {
     for (const input of [

@@ -20,6 +20,7 @@ export interface RouteDiagnostics {
   remoteMdns: number;
   lanCandidatesAdded: number;
   candidateDelivery?: CandidateDelivery;
+  localNetworkPermission?: 'granted' | 'prompt' | 'denied' | 'unavailable';
   statsReads: number;
   statsErrors: number;
   candidatePairs: Record<string, number>;
@@ -37,6 +38,8 @@ export interface RouteDiagnostics {
 // Interpret only observed negotiation facts. Browser reports cannot identify
 // an SSID, campus policy, firewall rule, or the cause of failed discovery.
 export function routeFailureMessage(report?: RouteDiagnostics) {
+  if (report?.localNetworkPermission === 'denied')
+    return 'Local-network access is blocked for this site in your browser. Allow local-network access in this site’s browser settings, then create a fresh connection on both devices. No file transfer started.';
   if (report && (!report.localDescription || !report.remoteDescription))
     return 'Connection setup is incomplete: both devices’ connection descriptions were not installed. Keep both browsers open and create a fresh code.';
   if (report?.candidateDelivery?.rejected)
@@ -54,7 +57,13 @@ export function routeFailureMessage(report?: RouteDiagnostics) {
     (stunUnavailable
       ? 'This device could not reach either configured STUN service. '
       : '') +
-    'Guest, campus, hotel, and workplace networks may block local discovery or connections between devices, even with the same Wi-Fi name. Try a trusted network that allows local connections, or ask the network administrator whether direct WebRTC traffic is allowed.'
+    'Check local-network access in this site’s browser settings on both devices. On Windows, check that the browser is allowed through Windows Firewall on your trusted private network. ' +
+    (report &&
+    !report.lanCandidatesAdded &&
+    (report.remoteMdns || report.candidateDelivery?.added)
+      ? 'If local discovery fails, enter the other device’s local IPv4 under Advanced network settings before connecting again. '
+      : '') +
+    'Guest, campus, hotel, and workplace networks may block local discovery or connections between devices, even with the same Wi-Fi name. Try connecting the laptop to the iPhone’s Personal Hotspot, or use another trusted network that allows local connections. No file transfer started.'
   );
 }
 
@@ -81,6 +90,9 @@ export class RouteProbe {
   private polling = false;
   private statsReads = 0;
   private statsErrors = 0;
+  private permission?: PermissionStatus;
+  private localNetworkPermission: RouteDiagnostics['localNetworkPermission'] =
+    'unavailable';
   private selectedRoute?: RouteDiagnostics['selectedRoute'];
   private previous?: { timestamp: number; sent?: number; received?: number };
   constructor(
@@ -93,6 +105,27 @@ export class RouteProbe {
     pc.addEventListener('icecandidateerror', this.error);
     this.timer = setInterval(() => void this.poll(), 2000);
     this.snapshot();
+    void this.observePermission();
+  }
+  private permissionChanged = () => {
+    if (this.stopped || !this.permission) return;
+    this.localNetworkPermission = this.permission.state;
+    this.snapshot();
+  };
+  private async observePermission() {
+    try {
+      // Query only: WebRTC owns the prompt. Unsupported browsers continue
+      // normal ICE; never probe LAN endpoints or request camera/microphone.
+      const permission = await navigator.permissions.query({
+        name: 'local-network' as PermissionName,
+      });
+      if (this.stopped) return;
+      this.permission = permission;
+      permission.addEventListener('change', this.permissionChanged);
+      this.permissionChanged();
+    } catch {
+      // Older engines do not recognize this permission descriptor.
+    }
   }
   private error = (event: Event) => {
     const error = event as RTCPeerConnectionIceErrorEvent;
@@ -199,6 +232,7 @@ export class RouteProbe {
       remoteMdns: remote.mdns,
       lanCandidatesAdded: this.lanCandidates(),
       candidateDelivery: this.delivery(),
+      localNetworkPermission: this.localNetworkPermission,
       statsReads: this.statsReads,
       statsErrors: this.statsErrors,
       candidatePairs: { ...this.pairs },
@@ -214,5 +248,6 @@ export class RouteProbe {
     this.stopped = true;
     clearInterval(this.timer);
     this.pc.removeEventListener('icecandidateerror', this.error);
+    this.permission?.removeEventListener('change', this.permissionChanged);
   }
 }

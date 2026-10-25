@@ -1,5 +1,56 @@
 # Validation record
 
+## SpeedGate 0.3.37 · October 24, 2026
+
+The reported Windows Chrome 156 receiver/iPhone 14 attempt reached stable
+signaling, installed both descriptions and accepted all four remote candidates,
+but never opened a data channel. Both sides had server-reflexive candidates;
+STUN 701 events do not establish complete STUN failure or identify the blocking
+permission, firewall or network policy. No video bytes reached the transfer
+engine. The physical device/network combination remains unverified.
+
+Connection setup now permits the optional other-device IPv4 on either side.
+The fallback reads bounded delivered trickle candidates as well as negotiated
+SDP, including the primary and additional connections. A controlled WebKit
+sender fixture with STUN disabled and unresolvable mDNS candidates failed at
+45 seconds before this change: candidate delivery reported one accepted
+candidate while remote SDP contained none and the LAN helper tried zero
+routes. The same fixture now connects, requires approval, transfers
+**8 MiB + 37 bytes**, independently verifies stored SHA-256, opens the extra
+connections and consumes the code. A separate native WebKit probe confirmed
+that an unresolved mDNS candidate can be accepted without appearing in remote
+SDP. This is a discovery fallback, not a bypass for blocked direct traffic.
+
+The route probe queries local-network permission once, observes changes, and
+removes the listener on stop. Unsupported engines continue normal discovery;
+no permission prompt, network probe or media-device access is introduced by
+the query. Early errors and timeouts use the observed permission state and
+explain Windows/browser settings, the optional LAN route and Personal Hotspot.
+Only permission state is added to address-free local reports.
+
+- **273 unit/integration tests**, TypeScript and ESLint pass. New regressions
+  cover trickle candidates missing from SDP, pre-answer delivery, application
+  sections, deduplication, input/lifetime bounds, both roles, permission changes,
+  unsupported queries, late completion after disposal and early error guidance.
+- The final 27-case Chromium/Firefox/WebKit connection and layout run records
+  **21 passes, four intentional skips and two WebKit timeouts**. Both timed-out
+  cases had already reached receiver verification; the exact later stall is
+  unresolved. Both cases (sender-side LAN fallback and compatibility storage)
+  pass a targeted rerun in 9.1 and 8.8 seconds respectively, so all 23 runnable
+  cases have passing final-code runs. The sender-side WebKit fallback also
+  passes separate focused runs. Tests cover consent, consumed codes, rejected
+  discovery without transferred bytes, early candidates, independent stored
+  hashes, compatibility downloads/readback, responsive layout and 200% text.
+- Six existing real Chromium transfer/recovery scenarios pass with independent
+  stored hashes for **8 MiB + 111 bytes**: pipeline, closed lane, unavailable
+  lanes, local pipeline, lost packet and slow lane. These are local functional
+  checks, not a new physical-device throughput measurement.
+- The protocol constants, path scheduler and transfer engine are byte-identical
+  to 0.3.36. The parallel transport differs only in honoring the optional peer
+  address on either role and forwarding setup candidates to that helper. Phone
+  five-connection defaults, selectable 7/14 connections, scheduling, pacing,
+  buffers, frame sizes, checkpoint windows, storage and verification are retained.
+
 ## SpeedGate 0.3.36 · October 16, 2026
 
 Current saving, screen-awake, history, diagnostics, original-byte handling,
