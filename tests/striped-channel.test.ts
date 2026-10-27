@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StripedChannel } from '../lib/bridge/striped-channel';
 import {
+  VERSION,
   FRAME_BYTES,
   LEGACY_TRANSFER_WINDOW_BYTES,
   CHECKPOINT_BYTES,
@@ -87,7 +88,7 @@ function receiver() {
       typeof data === 'string' ? data : Array.from(new Uint8Array(data)),
     );
   primary.receive(
-    JSON.stringify({ type: 'hello', version: 1, stripedTransport: 1 }),
+    JSON.stringify({ type: 'hello', version: VERSION, stripedTransport: 1 }),
   );
   return { primary, transport, received };
 }
@@ -114,7 +115,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           ...(supported ? { peerLinkTest: 1 } : {}),
         }),
       );
@@ -134,7 +135,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 13,
@@ -173,11 +174,11 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       paused: false,
       visibility: 'visible' as const,
     };
-    primary.receive(JSON.stringify({ type: 'hello', version: 1 }));
+    primary.receive(JSON.stringify({ type: 'hello', version: VERSION }));
     transport.publishSourceStatus(state);
     expect(primary.sent).toEqual([]);
     primary.receive(
-      JSON.stringify({ type: 'hello', version: 1, sourceStatus: 1 }),
+      JSON.stringify({ type: 'hello', version: VERSION, sourceStatus: 1 }),
     );
     transport.publishSourceStatus(state);
     expect(primary.sent).toHaveLength(1);
@@ -233,7 +234,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(wire);
     expect(transport.snapshot().source).toBeUndefined();
     primary.receive(
-      JSON.stringify({ type: 'hello', version: 1, sourceStatus: 1 }),
+      JSON.stringify({ type: 'hello', version: VERSION, sourceStatus: 1 }),
     );
     const before = received.length;
     primary.receive(wire);
@@ -263,12 +264,12 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       const primary = new Channel();
       const transport = new StripedChannel(primary.native(), 'send');
       opened.push(transport);
-      transport.send(JSON.stringify({ type: 'hello', version: 1 }));
+      transport.send(JSON.stringify({ type: 'hello', version: VERSION }));
       expect(JSON.parse(primary.sent[0] as string).stripedLanes).toBe(13);
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
           stripedLanes: 13,
@@ -296,7 +297,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
           stripedLanes: 13,
@@ -317,7 +318,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         deviceKind: 'phone',
         stripedTransport: 1,
         stripedReceipts: 1,
@@ -337,7 +338,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       userAgent: 'Mozilla/5.0 (iPhone) Mobile',
       maxTouchPoints: 5,
     });
-    transport.send(JSON.stringify({ type: 'hello', version: 1 }));
+    transport.send(JSON.stringify({ type: 'hello', version: VERSION }));
     const hello = JSON.parse(primary.sent[0] as string);
     expect(hello.deviceKind).toBe('phone');
     expect(JSON.stringify(hello)).not.toContain('Mozilla');
@@ -346,11 +347,15 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       received.push((event as CustomEvent).detail),
     );
     primary.receive(
-      JSON.stringify({ type: 'hello', version: 1, deviceKind: 'computer' }),
+      JSON.stringify({
+        type: 'hello',
+        version: VERSION,
+        deviceKind: 'computer',
+      }),
     );
-    primary.receive(JSON.stringify({ type: 'hello', version: 1 }));
+    primary.receive(JSON.stringify({ type: 'hello', version: VERSION }));
     primary.receive(
-      JSON.stringify({ type: 'hello', version: 1, deviceKind: '<img>' }),
+      JSON.stringify({ type: 'hello', version: VERSION, deviceKind: '<img>' }),
     );
     expect(received).toEqual(['computer', null, null]);
     expect(primary.readyState).toBe('open');
@@ -404,7 +409,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -440,7 +445,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -509,7 +514,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -585,7 +590,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedFrameBytes: STRIPED_FRAME_BYTES,
@@ -609,7 +614,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
       }),
@@ -630,7 +635,11 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       );
       opened.push(transport);
       primary.receive(
-        JSON.stringify({ type: 'hello', version: 1, stripedTransport: 1 }),
+        JSON.stringify({
+          type: 'hello',
+          version: VERSION,
+          stripedTransport: 1,
+        }),
       );
       primary.receive(
         JSON.stringify({
@@ -667,7 +676,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     const primary = new Channel(),
       transport = new StripedChannel(primary.native(), 'send');
     opened.push(transport);
-    primary.receive(JSON.stringify({ type: 'hello', version: 1 }));
+    primary.receive(JSON.stringify({ type: 'hello', version: VERSION }));
     const bytes = new Uint8Array([2, 5, 9]).buffer;
     transport.send(bytes);
     expect(primary.sent).toEqual([bytes]);
@@ -688,7 +697,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(JSON.stringify({ type: 'pg-striped-start' }));
     primary.receive(frame(1, new Uint8Array([4, 9])));
     expect(received).toEqual([
-      JSON.stringify({ type: 'hello', version: 1, stripedTransport: 1 }),
+      JSON.stringify({ type: 'hello', version: VERSION, stripedTransport: 1 }),
       start,
     ]);
     primary.receive(frame(0, new Uint8Array([8])));
@@ -719,7 +728,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     opened.push(transport);
     transport.bufferedAmountLowThreshold = 32768;
     primary.receive(
-      JSON.stringify({ type: 'hello', version: 1, stripedTransport: 1 }),
+      JSON.stringify({ type: 'hello', version: VERSION, stripedTransport: 1 }),
     );
     await vi.advanceTimersByTimeAsync(0);
     expect(Peer.peers).toHaveLength(2);
@@ -753,7 +762,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       transport = new StripedChannel(primary.native(), 'send');
     opened.push(transport);
     primary.receive(
-      JSON.stringify({ type: 'hello', version: 1, stripedTransport: 1 }),
+      JSON.stringify({ type: 'hello', version: VERSION, stripedTransport: 1 }),
     );
     await vi.advanceTimersByTimeAsync(0);
     transport.send(new Uint8Array([1]).buffer);
@@ -782,7 +791,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 99,
@@ -830,7 +839,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
           stripedLanes: advertised,
@@ -867,7 +876,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
           stripedLanes: 13,
@@ -901,7 +910,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
           stripedLanes: 13,
@@ -957,7 +966,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 13,
@@ -1019,7 +1028,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -1087,7 +1096,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -1154,7 +1163,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
           stripedLanes: 4,
@@ -1228,7 +1237,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -1292,7 +1301,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -1346,7 +1355,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
           stripedLanes: 4,
@@ -1415,7 +1424,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -1445,7 +1454,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
     primary.receive(
       JSON.stringify({
         type: 'hello',
-        version: 1,
+        version: VERSION,
         stripedTransport: 1,
         stripedReceipts: 1,
         stripedLanes: 4,
@@ -1504,7 +1513,7 @@ describe('parallel transport compatibility, ordering, and fallback', () => {
       primary.receive(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: VERSION,
           stripedTransport: 1,
           stripedReceipts: 1,
         }),

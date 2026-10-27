@@ -102,7 +102,7 @@ beforeEach(() => {
 describe('native app handoff preparation', () => {
   it('independently checks staged bytes and preserves Unicode names, MIME and modification time', async () => {
     const files = await prepareSharedFiles([record]);
-    expect(files[0].name).toBe('IMG.HEIC');
+    expect(files[0].name).toMatch(/^IMG - SpeedGate [a-f0-9-]{36}\.HEIC$/);
     expect(files[0].type).toBe('image/heic');
     expect(files[0].lastModified).toBe(0);
     expect(
@@ -111,6 +111,25 @@ describe('native app handoff preparation', () => {
         .digest('hex'),
     ).toBe(sha);
     expect(state.stored.size).toBe(0);
+  });
+  it('keeps all 504 same-name same-byte originals across batches and repeated preparations', async () => {
+    const names = new Set<string>();
+    for (let offset = 0; offset < 504; offset += 50) {
+      const files = await prepareSharedFiles(
+        Array.from({ length: Math.min(50, 504 - offset) }, (_, i) => ({
+          ...record,
+          id: String(offset + i),
+        })),
+      );
+      for (const file of files) {
+        expect(names.has(file.name)).toBe(false);
+        names.add(file.name);
+        expect(new Uint8Array(await file.arrayBuffer())).toEqual(state.bytes);
+      }
+    }
+    expect(names.size).toBe(504);
+    const retry = await prepareSharedFiles([record]);
+    expect(names.has(retry[0].name)).toBe(false);
   });
   it('blocks corrupted or unverified copies and empty selections', async () => {
     state.bytes = new Uint8Array([3, 2, 1]);
@@ -164,7 +183,7 @@ describe('stored and exported copies', () => {
     state.bytes = new Uint8Array();
     const fs = filesystem();
     fs.files.set('旅行/IMG.HEIC', new Uint8Array([1, 2, 3]));
-    const result = await existingDestination(fs.dir(), record);
+    const result = await existingDestination(fs.dir(), record, '旅行/IMG.HEIC');
     expect(result?.scope).toBe('destination');
     expect(result?.bytes).toBe(3);
     expect(fs.writes).toHaveLength(0);
@@ -173,11 +192,14 @@ describe('stored and exported copies', () => {
     const fs = filesystem();
     fs.files.set('旅行/IMG.HEIC', new Uint8Array([9, 9, 9]));
     fs.files.set('旅行/IMG (2).HEIC', new Uint8Array([1, 2, 3]));
-    expect((await existingDestination(fs.dir(), record))?.destinationPath).toBe(
-      '旅行/IMG (2).HEIC',
-    );
+    expect(
+      (await existingDestination(fs.dir(), record, '旅行/IMG (2).HEIC'))
+        ?.destinationPath,
+    ).toBe('旅行/IMG (2).HEIC');
     fs.files.set('旅行/IMG (2).HEIC', new Uint8Array([4, 5, 6]));
-    expect(await existingDestination(fs.dir(), record)).toBeUndefined();
+    expect(
+      await existingDestination(fs.dir(), record, '旅行/IMG (2).HEIC'),
+    ).toBeUndefined();
   });
   it('rereads destination bytes and preserves Unicode folder structure', async () => {
     const fs = filesystem();
@@ -194,15 +216,29 @@ describe('stored and exported copies', () => {
     expect(fs.files.get('IMG.HEIC')).toEqual(new Uint8Array([9, 9, 9]));
     expect(fs.files.get('IMG (2).HEIC')).toEqual(new Uint8Array([1, 2, 3]));
     expect(
-      (await existingDestination(fs.dir(), record, undefined, true))?.scope,
+      (await existingDestination(fs.dir(), record, 'IMG (2).HEIC'))?.scope,
     ).toBe('destination');
     expect(fs.writes).toEqual(['IMG (2).HEIC']);
   });
-  it('skips identical content only after hashing its actual stored copy', async () => {
+  it('saves another identical original instead of deduplicating it', async () => {
     const fs = filesystem();
     fs.files.set('旅行/IMG.HEIC', new Uint8Array([1, 2, 3]));
-    expect((await saveToFolder(fs.dir(), record)).phase).toBe('duplicate');
-    expect(fs.writes).toHaveLength(0);
+    const saved = await saveToFolder(fs.dir(), record);
+    expect(saved.phase).toBe('verified');
+    expect(saved.destinationPath).toBe('旅行/IMG (2).HEIC');
+    expect(fs.files.size).toBe(2);
+    expect(fs.writes).toEqual(['旅行/IMG (2).HEIC']);
+    expect(await existingDestination(fs.dir(), record)).toBeUndefined();
+  });
+  it('serializes simultaneous same-name saves and preserves both copies', async () => {
+    const fs = filesystem();
+    const results = await Promise.all([
+      saveToFolder(fs.dir(), record),
+      saveToFolder(fs.dir(), record),
+    ]);
+    expect(new Set(results.map((r) => r.destinationPath)).size).toBe(2);
+    expect(fs.files.size).toBe(2);
+    for (const bytes of fs.files.values()) expect(bytes).toEqual(state.bytes);
   });
   it('does not overwrite conflicting content', async () => {
     const fs = filesystem();
@@ -245,6 +281,20 @@ describe('stored and exported copies', () => {
       ),
     ).toBe(1);
     expect(state.stored.get(record.id)?.scope).toBe('exported');
+  });
+  it('does not certify multiple identical transfers from one saved copy', async () => {
+    const copies = [
+      { ...record, saveName: 'first.HEIC' },
+      { ...record, id: 'b'.repeat(64), saveName: 'second.HEIC' },
+    ];
+    await expect(
+      verifyExport(new File([state.bytes], 'renamed.HEIC'), copies),
+    ).rejects.toThrow('several transferred copies');
+    expect(
+      await verifyExport(new File([state.bytes], 'second.HEIC'), copies),
+    ).toBe(1);
+    expect(state.stored.size).toBe(1);
+    expect(state.stored.get(copies[1].id)?.scope).toBe('exported');
   });
   it('retains staging and avoids destination certification when the Photos folder is full', async () => {
     const full = {

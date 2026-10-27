@@ -498,8 +498,8 @@ for (const mode of [
             .click();
           const downloaded = await event;
           // macOS/WebKit downloads may normalize a Unicode filename to NFD.
-          expect(downloaded.suggestedFilename().normalize('NFC')).toBe(
-            'code-transfer-é.bin',
+          expect(downloaded.suggestedFilename().normalize('NFC')).toMatch(
+            /^code-transfer-é - SpeedGate [a-f0-9-]{36}\.bin$/,
           );
           expect(
             createHash('sha256')
@@ -934,7 +934,9 @@ test('real peer transfer, readback, manual export verification, and reconnect', 
     .getByRole('button', { name: 'Download verified files', exact: true })
     .click();
   const download = await downloadEvent;
-  expect(download.suggestedFilename()).toBe('été-original.MOV');
+  expect(download.suggestedFilename()).toMatch(
+    /^été-original - SpeedGate [a-f0-9-]{36}\.MOV$/,
+  );
   await receiver.getByRole('button', { name: 'History', exact: true }).click();
   await expect(receiver.locator('.file-status').first()).toHaveText(
     'Download verification pending',

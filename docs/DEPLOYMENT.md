@@ -60,7 +60,9 @@ Public repositories can use GitHub Pages on GitHub Free, subject to GitHub’s s
 The active repository and Pages path are `s4lmon778/SpeedGate`. Application assets
 use relative URLs so the current build and preserved releases work under this
 path. Existing persisted storage keys and WebRTC pairing/channel identifiers
-remain stable to preserve user data and interoperability with older tabs.
+remain stable to preserve user data. Transfer protocol 2 (0.3.38+) requires both
+devices to reload before connecting, protecting separate copies from older
+tabs' content-based duplicate skipping. Pairing tokens retain their version.
 Legacy `PIXELGATE_*` base/signaling and test/benchmark variables remain accepted
 where the new `SPEEDGATE_*` entry points were introduced. Historical release
 bytes and numeric measurement records are preserved, including their old names.

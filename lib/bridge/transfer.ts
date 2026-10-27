@@ -176,8 +176,15 @@ export class Receiver {
         throw new Error('Another file is already active.');
       this.failed = false;
       const manifest = validateRecord(message.file);
+      if (!manifest.copyId)
+        throw new Error('File copy identity missing. Reload both devices.');
       if (
-        manifest.id !== (await identity(manifest.sha256, manifest.relativePath))
+        manifest.id !==
+        (await identity(
+          manifest.sha256,
+          manifest.relativePath,
+          manifest.copyId,
+        ))
       )
         throw new Error('File identity does not match its manifest.');
       this.active = manifest;
@@ -192,8 +199,7 @@ export class Receiver {
         const destination = await existingDestination(
           folder,
           manifest,
-          old?.destinationPath,
-          this.flattenDestination(),
+          old?.sha256 === manifest.sha256 ? old.destinationPath : undefined,
         );
         if (destination) {
           await this.update(destination);
@@ -683,6 +689,8 @@ export class Sender {
     await this.unpaused();
     this.processing('sending');
   }
+  private resumable?: Promise<RecordFile[]>;
+  private claimedCopies = new Set<string>();
   async prepare(q: QueuedFile, sessionId: string): Promise<RecordFile> {
     q.phase = 'hashing';
     q.error = undefined;
@@ -690,10 +698,33 @@ export class Sender {
     try {
       safePath(q.path);
       const sha256 = await hashFile(q.file);
-      const id = await identity(sha256, q.path);
+      // Reuse only unfinished attempts, one-to-one, after source reselection.
+      // Completed copies never consume a fresh selection, even if identical.
+      const resumable = await (this.resumable ??= local
+        .senderFiles()
+        .then((files) =>
+          files.filter(
+            (f) =>
+              f.copyId &&
+              !['verified', 'duplicate', 'cancelled'].includes(f.phase),
+          ),
+        ));
+      const previous =
+        q.record ??
+        resumable.find(
+          (f) =>
+            !this.claimedCopies.has(f.id) &&
+            f.sha256 === sha256 &&
+            f.relativePath === q.path &&
+            f.size === q.file.size,
+        );
+      if (previous) this.claimedCopies.add(previous.id);
+      const copyId = previous?.copyId ?? crypto.randomUUID();
+      const id = await identity(sha256, q.path, copyId);
       const record: RecordFile = {
         id,
         sessionId,
+        copyId,
         sha256,
         relativePath: q.path,
         originalName: q.file.name,
@@ -706,6 +737,9 @@ export class Sender {
         updated: Date.now(),
       };
       q.record = record;
+      // Persist the selection token before payloads, so a sender reload can
+      // recover an unfinished attempt without merging two selected originals.
+      await local.putSender(record);
       q.phase = 'ready';
       this.changed(q);
       return record;

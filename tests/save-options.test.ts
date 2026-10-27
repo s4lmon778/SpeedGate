@@ -2,11 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   androidChromeLink,
   downloadType,
+  uniqueSaveName,
   nativeShareBatch,
   ANDROID_SHARE_FILE_BYTES,
 } from '../lib/bridge/save-options';
 
 describe('local save options', () => {
+  it('keeps names distinct over a 14,000-original library with repeated names', () => {
+    const names = Array.from({ length: 14000 }, () =>
+      uniqueSaveName('IMG_0001.JPG'),
+    );
+    expect(new Set(names).size).toBe(14000);
+  });
   it('opens only the HTTPS app page in Chrome without pairing or query data', () => {
     const link = androidChromeLink(
       'https://example.com/SpeedGate/?secret=private#code=123456',
@@ -40,6 +47,20 @@ describe('local save options', () => {
     expect(downloadType('x.jpg', 'IMAGE/HEIC')).toBe('image/heic');
     expect(downloadType('x.png', 'bad\r\ncontent')).toBe('image/png');
     expect(downloadType('x.unknown', '')).toBe('application/octet-stream');
+  });
+  it('keeps unique extensions and UTF-8 filenames within filesystem limits', () => {
+    for (const name of [
+      'IMG_0001.HEIC',
+      'movie.MOV',
+      'no-extension',
+      '.hidden',
+      `${'旅行🐈'.repeat(35)}.JPG`,
+    ]) {
+      const first = uniqueSaveName(name);
+      expect(first).not.toBe(uniqueSaveName(name));
+      expect(new TextEncoder().encode(first).length).toBeLessThanOrEqual(240);
+      if (name.endsWith('.JPG')) expect(first.endsWith('.JPG')).toBe(true);
+    }
   });
   it('limits each native handoff to ten while keeping the full collection available', () => {
     const files = Array.from(

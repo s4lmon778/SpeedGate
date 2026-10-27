@@ -1,4 +1,4 @@
-export const VERSION = 1;
+export const VERSION = 2;
 export const MAX_BULK_LANES = 13;
 export const FRAME_BYTES = 16 * 1024;
 // Leave room for the striped header within the interoperable 64 KiB SCTP message.
@@ -35,6 +35,8 @@ export type Scope = 'none' | 'browser' | 'destination' | 'exported';
 export interface RecordFile {
   id: string;
   sessionId: string;
+  copyId?: string;
+  saveName?: string;
   relativePath: string;
   originalName: string;
   size: number;
@@ -109,6 +111,9 @@ export function validateRecord(raw: unknown): RecordFile {
   safePath(f.relativePath);
   if (
     !/^[a-f0-9]{64}$/.test(f.id) ||
+    (f.copyId !== undefined &&
+      (typeof f.copyId !== 'string' ||
+        !/^[a-zA-Z0-9-]{1,80}$/.test(f.copyId))) ||
     !/^[a-f0-9]{64}$/.test(f.sha256) ||
     !Number.isSafeInteger(f.size) ||
     f.size < 0 ||
@@ -132,6 +137,7 @@ export function validateRecord(raw: unknown): RecordFile {
     shared: false,
     stagingCleared: false,
     destinationPath: undefined,
+    saveName: undefined,
   };
 }
 export function collisionName(name: string, n: number) {

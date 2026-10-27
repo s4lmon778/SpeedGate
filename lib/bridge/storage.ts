@@ -13,7 +13,7 @@ import {
   indexedStagingUsage,
   removeIndexed,
 } from './indexed-staging';
-import { downloadType } from './save-options';
+import { downloadType, uniqueSaveName } from './save-options';
 
 export type StagingBackend = 'opfs' | 'indexeddb';
 let selectedBackend: StagingBackend | undefined;
@@ -326,7 +326,6 @@ export async function existingDestination(
   root: FileSystemDirectoryHandle,
   record: RecordFile,
   preferredPath?: string,
-  flatten = false,
 ): Promise<RecordFile | undefined> {
   const match = async (path: string) => {
     const parts = safePath(path).split('/');
@@ -357,19 +356,26 @@ export async function existingDestination(
   });
   if (preferredPath && (await match(preferredPath)).matches)
     return verified(preferredPath);
-  const parts = safePath(
-    flatten ? record.originalName : record.relativePath,
-  ).split('/');
-  const original = parts.pop()!;
-  for (let n = 1; n <= 10000; n++) {
-    const path = [...parts, collisionName(original, n)].join('/');
-    const candidate = await match(path);
-    if (candidate.matches) return verified(path);
-    if (!candidate.present) return undefined;
-  }
+  // Only the path already recorded for THIS transfer copy may satisfy a retry.
+  // Same-name or same-hash files belonging to other copies never consume it.
   return undefined;
 }
+let folderSaves: Promise<unknown> = Promise.resolve();
 export async function saveToFolder(
+  root: FileSystemDirectoryHandle,
+  record: RecordFile,
+  flatten = false,
+): Promise<RecordFile> {
+  const save = () => writeToFolder(root, record, flatten);
+  // Serialize name reservation and writing across this origin's tabs when the
+  // browser supports Web Locks, and within this tab on older engines.
+  if (navigator.locks?.request)
+    return await navigator.locks.request('speedgate-save-original', save);
+  const pending = folderSaves.then(save);
+  folderSaves = pending.catch(() => {});
+  return pending;
+}
+async function writeToFolder(
   root: FileSystemDirectoryHandle,
   record: RecordFile,
   flatten = false,
@@ -393,22 +399,11 @@ export async function saveToFolder(
     try {
       existing = await folder.getFileHandle(name);
     } catch (e) {
+      if ((e as Error).name === 'TypeMismatchError') continue;
       if ((e as Error).name !== 'NotFoundError') throw e;
     }
     const destinationPath = [...parts, name].join('/');
-    if (existing) {
-      const file = await existing.getFile();
-      if (file.size === record.size && (await hashFile(file)) === record.sha256)
-        return {
-          ...record,
-          destinationPath,
-          phase: 'duplicate',
-          scope: 'destination',
-          updated: Date.now(),
-          error: undefined,
-        };
-      continue;
-    }
+    if (existing) continue;
     const target = await folder.getFileHandle(name, { create: true });
     const writer = await target.createWritable();
     try {
@@ -441,14 +436,20 @@ export async function downloadStaged(record: RecordFile) {
   if (!(await storedCopyValid(record)))
     throw new Error('Staged copy is unavailable or failed verification.');
   const file = await stagedFile(record.id);
+  const saveName = uniqueSaveName(record.originalName);
   offerPreparedDownload(
-    new File([file], record.originalName, {
+    new File([file], saveName, {
       type: downloadType(record.originalName, record.mimeType),
       lastModified: record.modified,
     }),
     record.id,
   );
-  await local.put({ ...record, downloaded: true, updated: Date.now() });
+  await local.put({
+    ...record,
+    downloaded: true,
+    saveName,
+    updated: Date.now(),
+  });
 }
 const downloadUrls = new Map<
   string,
@@ -482,7 +483,6 @@ export async function prepareSharedFiles(
 ): Promise<File[]> {
   if (!records.length) throw new Error('Select files to save.');
   const files: File[] = [];
-  const names = new Set<string>();
   for (const record of records) {
     if (!isVerified(record) || record.stagingCleared)
       throw new Error('Only verified browser copies can be shared.');
@@ -502,10 +502,7 @@ export async function prepareSharedFiles(
       throw new Error(
         `${name}: browser copy failed verification. Receive this file again.`,
       );
-    let uniqueName = name;
-    let suffix = 2;
-    while (names.has(uniqueName)) uniqueName = collisionName(name, suffix++);
-    names.add(uniqueName);
+    const uniqueName = uniqueSaveName(name);
     files.push(
       new File([source], uniqueName, {
         type: downloadType(uniqueName, record.mimeType),
@@ -528,13 +525,23 @@ export async function verifyExport(file: File, records: RecordFile[]) {
     throw new Error(
       `${file.name}: exported copy failed integrity verification.`,
     );
-  for (const record of matching)
-    await local.put({
-      ...record,
-      scope: 'exported',
-      phase: 'verified',
-      updated: Date.now(),
-      error: undefined,
-    });
-  return matching.length;
+  const named = matching.filter((r) => r.saveName === file.name);
+  const target =
+    named.length === 1
+      ? named[0]
+      : matching.length === 1
+        ? matching[0]
+        : undefined;
+  if (!target)
+    throw new Error(
+      `${file.name}: several transferred copies have these bytes. Select the saved file with its unique SpeedGate filename to verify each copy separately.`,
+    );
+  await local.put({
+    ...target,
+    scope: 'exported',
+    phase: 'verified',
+    updated: Date.now(),
+    error: undefined,
+  });
+  return 1;
 }

@@ -8,7 +8,27 @@ function entry(file: File, path?: string): QueuedFile {
   };
 }
 export function selected(files: FileList | File[]) {
-  return Array.from(files).map((f) => entry(f));
+  // One random namespace per picker result; every entry still has its own key.
+  // Keep this path metadata-only: no byte reads, hashing or lastModified probes
+  // before Send. Large mobile selections should become usable immediately.
+  const batch = crypto.randomUUID();
+  const paths = new Map<string, string>();
+  const result: QueuedFile[] = [];
+  for (const file of files) {
+    const sourcePath = file.webkitRelativePath || file.name;
+    let path = paths.get(sourcePath);
+    if (path === undefined) {
+      path = safePath(sourcePath);
+      paths.set(sourcePath, path);
+    }
+    result.push({
+      key: `${batch}-${result.length}`,
+      file,
+      path,
+      phase: 'pending',
+    });
+  }
+  return result;
 }
 interface LegacyEntry {
   isFile: boolean;

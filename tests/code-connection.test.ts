@@ -5,6 +5,7 @@ import {
   newPairingCode,
   pairingCode,
 } from '../lib/bridge/code-connection';
+import { VERSION } from '../lib/bridge/model';
 import { PAIR_TTL } from '../lib/bridge/pairing';
 
 const state = vi.hoisted(() => ({
@@ -253,7 +254,9 @@ describe('six-digit code pairing', () => {
     expect(c.room!.pending).toBe(true);
     expect(e.connected).not.toHaveBeenCalled();
     e.connected.mockImplementation(() =>
-      data.dataChannel.send(JSON.stringify({ type: 'hello', version: 1 })),
+      data.dataChannel.send(
+        JSON.stringify({ type: 'hello', version: VERSION }),
+      ),
     );
     const second = new Data();
     state.peers[0].emit('connection', second);

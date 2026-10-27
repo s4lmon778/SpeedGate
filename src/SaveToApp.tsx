@@ -184,7 +184,12 @@ export function SaveToApp({
       for (const id of ids) {
         const current = await local.get(id);
         if (current)
-          await local.put({ ...current, shared: true, updated: Date.now() });
+          await local.put({
+            ...current,
+            shared: true,
+            saveName: prepared[preparedIds.indexOf(id)].name,
+            updated: Date.now(),
+          });
       }
       await changed();
       setChoices((previous) =>
@@ -235,6 +240,7 @@ export function SaveToApp({
             await local.put({
               ...current,
               downloaded: true,
+              saveName: files[ids.indexOf(id)].name,
               updated: Date.now(),
             });
         }
@@ -434,7 +440,9 @@ export function SaveToApp({
           Select files above and prepare them to check their bytes. App handoffs
           use up to 10 compatible files per tap; downloads use batches of up to
           50. Download all selected continues through the collection. Exports
-          preserve original bytes and use filenames without source folders.
+          preserve original bytes. Every saved copy gets a unique SpeedGate
+          filename, including identical photos and videos. Original names stay
+          in transfer history.
           {supported
             ? ' Available apps and folders depend on your device. Websites cannot choose a specific album automatically.'
             : ' File sharing is unavailable here; verified downloads remain available.'}

@@ -1,5 +1,55 @@
 # Validation record
 
+## SpeedGate 0.3.38 · October 26, 2026
+
+The reported large-batch filename collision exposed two unsafe copy policies:
+selection discarded matching path/size/modification metadata, and downloads
+restarted numbered names for every 50-file preparation. Transfer identities
+also merged equal source paths and bytes, while direct-folder saving skipped
+identical destination bytes. Every new selected original now keeps a separate
+copy token. Downloads and native app handoffs use a fresh full UUID suffix,
+retaining the source extension, byte payload and embedded metadata. Original
+paths, copy tokens and offered save names remain in reports. Folder saves
+preserve existing identical files with another numbered copy and serialize
+name allocation. Saved-copy verification certifies one copy per selected file.
+
+Selection now uses one random namespace per picker result, validates repeated
+paths once, avoids the former size/date duplicate scan, and queues references
+without reading payloads or hashing. Tests select another 500 repeated originals
+in Chromium, Firefox and WebKit, retain all 504 queue entries and render only
+the first 50 rows. This validates the website's selection path after the picker
+returns. It does not measure or speed up iPhone picker exports, cloud-original
+retrieval, or physical-device preparation.
+
+Copy tokens are saved before payload transfer. A reloaded sender can reclaim
+unfinished attempts one-to-one after rehashing reselected sources; completed
+copies never suppress new selections. Existing storage keys and staged bytes
+remain intact. Both devices must reload to use transfer protocol 2. Partial
+attempts from older releases without copy tokens restart on reselection, with
+their existing staged data retained.
+
+- TypeScript, ESLint and **282 unit/integration tests** pass. Regressions cover
+  14,000 generated save names, all 504 same-name/same-byte preparations across
+  batch boundaries, Unicode filename byte limits, simultaneous folder saves,
+  identical destination copies, one-copy export verification, separate transfer
+  identities, and checkpoint recovery after sender reload/reselection.
+- Chromium and Firefox each download **504 synthetic originals** in normal
+  200 ms paced 50-file batches. Two repeated filenames contain seven distinct
+  payloads, including exact duplicates. All 504 names are distinct, every hash
+  matches, each payload appears exactly 72 times, all browser copies remain
+  staged, and saving again after reload yields a 505th distinct name. This
+  exercises existing records from before the update as well as new naming.
+  Accelerating the fixture to 1 ms exposed Chromium download throttling; it is
+  not a supported download pace. The full collection requires over 100 seconds
+  at normal pacing, so the regression allows 150 seconds for completion.
+- Local browser regressions cover real WebRTC transfer/readback, saved-copy
+  checks, cancellation, sharing activation, 125-file mixed share/download
+  collections, selection, and narrow-viewport/text-enlargement layout. Native
+  mobile share sheets and cloud backup/deletion behavior remain unverified.
+- Downloads still record a request rather than completed saving; multiple-file
+  download permission is required. Browser staging is retained until explicit
+  cleanup. The app neither certifies cloud backups nor restores cloud deletions.
+
 ## SpeedGate 0.3.37 · October 24, 2026
 
 The reported Windows Chrome 156 receiver/iPhone 14 attempt reached stable

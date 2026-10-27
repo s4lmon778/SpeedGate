@@ -11,6 +11,7 @@ import {
 } from '../lib/bridge/model';
 const state = vi.hoisted(() => ({
   files: new Map<string, RecordFile>(),
+  sent: new Map<string, RecordFile>(),
   bytes: new Map<string, Uint8Array>(),
   corrupt: false,
   destination: false,
@@ -30,7 +31,10 @@ vi.mock('../lib/bridge/database', () => ({
       }
       state.files.set(r.id, { ...r });
     },
-    putSender: async () => {},
+    senderFiles: async () => [...state.sent.values()],
+    putSender: async (r: RecordFile) => {
+      state.sent.set(r.id, { ...r });
+    },
     session: async () => {},
   },
 }));
@@ -39,8 +43,10 @@ vi.mock('../lib/bridge/hash', () => ({
     createHash('sha256')
       .update(new Uint8Array(await f.arrayBuffer()))
       .digest('hex'),
-  identity: async (h: string, p: string) =>
-    createHash('sha256').update(`${h}\n${p}`).digest('hex'),
+  identity: async (h: string, p: string, copyId?: string) =>
+    createHash('sha256')
+      .update(`${h}\n${p}${copyId ? `\n${copyId}` : ''}`)
+      .digest('hex'),
 }));
 vi.mock('../lib/bridge/storage', () => ({
   StagingWriter: class {
@@ -171,6 +177,7 @@ function queue(size = 2 * 1024 * 1024 + 123): QueuedFile[] {
 }
 beforeEach(() => {
   state.files.clear();
+  state.sent.clear();
   state.bytes.clear();
   state.opens = [];
   state.corrupt = false;
@@ -756,7 +763,7 @@ describe('receiver-owned verification and checkpoints', () => {
     expect(state.bytes.size).toBe(0);
     await p.receiver.close();
   });
-  it('resumes after disconnection from the last committed checkpoint', async () => {
+  it('resumes reselected sources after a sender reload from the last committed checkpoint', async () => {
     let first = true;
     const p = peers((r) => {
       if (first && r.bytes === 1024 * 1024) {
@@ -775,9 +782,11 @@ describe('receiver-owned verification and checkpoints', () => {
     tail.set(state.bytes.get(id)!);
     state.bytes.set(id, tail);
     const resumed = peers();
-    await resumed.sender.run(q, 'resumed');
+    const reselected = queue();
+    await resumed.sender.run(reselected, 'resumed');
+    expect(reselected[0].record?.id).toBe(id);
     expect(state.opens).toEqual([0, 1024 * 1024]);
-    expect(q[0].phase).toBe('verified');
+    expect(reselected[0].phase).toBe('verified');
     expect(resumed.sender.snapshot().batch).toMatchObject({
       phase: 'verified',
       resumedBytes: CHECKPOINT_BYTES,
@@ -802,7 +811,41 @@ describe('receiver-owned verification and checkpoints', () => {
     expect(state.opens).toEqual([0, 0]);
     await next.receiver.close();
   });
-  it('skips duplicates only after rereading retained bytes', async () => {
+  it('claims unfinished copy tokens one-to-one when identical sources are reselected', async () => {
+    const interrupted = peers();
+    const old = await interrupted.sender.prepare(
+      queue(100)[0],
+      'before-reload',
+    );
+    await interrupted.receiver.close();
+    const reloaded = peers();
+    const first = queue(100)[0];
+    const second = queue(100)[0];
+    await reloaded.sender.run([first, second], 'after-reload');
+    expect(first.record?.id).toBe(old.id);
+    expect(second.record?.id).not.toBe(old.id);
+    expect(state.files.size).toBe(2);
+    expect(state.sent.size).toBe(2);
+    await reloaded.receiver.close();
+  });
+  it('retains identical selections and later selections as separate transfer copies', async () => {
+    const p = peers();
+    const first = queue(100)[0];
+    const second = { ...first, key: 'another-selection' };
+    await p.sender.run([first, second], 'same-session');
+    expect(first.phase).toBe('verified');
+    expect(second.phase).toBe('verified');
+    expect(first.record?.id).not.toBe(second.record?.id);
+    expect(state.files.size).toBe(2);
+    expect(state.bytes.size).toBe(2);
+    const third = { ...queue(100)[0], key: 'later-selection' };
+    await p.sender.run([third], 'later-session');
+    expect(state.files.size).toBe(3);
+    expect(state.opens).toEqual([0, 0, 0]);
+    expect(third.record?.sha256).toBe(first.record?.sha256);
+    await p.receiver.close();
+  });
+  it('reuses only the same queue copy on retry after rereading retained bytes', async () => {
     const p = peers(),
       q = queue(100);
     await p.sender.run(q, 'first');

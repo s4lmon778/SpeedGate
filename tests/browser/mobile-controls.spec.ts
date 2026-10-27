@@ -443,7 +443,10 @@ test('save/share opens from a fresh tap, preserves bytes, handles cancel, and ne
   );
   expect(actual.calls).toBe(2);
   expect(actual.activated).toBe(true);
-  expect(actual.names).toEqual(['photo-é.txt', 'photo-é (2).txt']);
+  expect(actual.names).toHaveLength(2);
+  expect(new Set(actual.names).size).toBe(2);
+  for (const name of actual.names)
+    expect(name).toMatch(/^photo-é - SpeedGate [a-f0-9-]{36}\.txt$/);
   const stored = (await snapshot(page)).records as {
     sha256: string;
     scope: string;
@@ -770,7 +773,9 @@ test('unsupported sharing offers byte-exact verified downloads with pending dest
   const result = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'Download verified files' }).click();
   const download = await result;
-  expect(download.suggestedFilename()).toBe('photo-é.txt');
+  expect(download.suggestedFilename()).toMatch(
+    /^photo-é - SpeedGate [a-f0-9-]{36}\.txt$/,
+  );
   const bytes = await readFile((await download.path())!);
   const hash = createHash('sha256').update(bytes).digest('hex');
   const expected = createHash('sha256')

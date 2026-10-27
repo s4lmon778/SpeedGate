@@ -225,7 +225,11 @@ for (const backend of ['opfs', 'indexeddb']) {
           .click();
         const download = await downloadEvent;
         const downloaded = await download.path();
-        expect(download.suggestedFilename()).toBe(largeName);
+        expect(download.suggestedFilename()).toMatch(
+          new RegExp(
+            `^${largeName.slice(0, largeName.lastIndexOf('.'))} - SpeedGate [a-f0-9-]{36}\\.${largeName.split('.').at(-1)}$`,
+          ),
+        );
         const downloadedHash = createHash('sha256');
         for await (const bytes of createReadStream(downloaded!))
           downloadedHash.update(bytes);
@@ -310,7 +314,11 @@ for (const backend of ['opfs', 'indexeddb']) {
       for await (const bytes of createReadStream(downloaded!))
         exportedHash.update(bytes);
       expect(exportedHash.digest('hex')).toBe(expected);
-      expect(download.suggestedFilename()).toBe(largeName);
+      expect(download.suggestedFilename()).toMatch(
+        new RegExp(
+          `^${largeName.slice(0, largeName.lastIndexOf('.'))} - SpeedGate [a-f0-9-]{36}\\.${largeName.split('.').at(-1)}$`,
+        ),
+      );
       expect(
         await receiver.evaluate(
           () => (window as unknown as { shareCalls: number }).shareCalls,

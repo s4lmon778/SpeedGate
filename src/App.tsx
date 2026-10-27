@@ -593,22 +593,13 @@ export default function SpeedGate() {
       throw new Error(
         'Pause and finish the current queue before adding more files.',
       );
-    const keys = new Set(
-      currentQueue.current.map(
-        (q) => `${q.path}:${q.file.size}:${q.file.lastModified}`,
-      ),
-    );
-    const added = files.filter((f) => {
-      const k = `${f.path}:${f.file.size}:${f.file.lastModified}`;
-      if (keys.has(k)) return false;
-      keys.add(k);
-      return true;
-    });
+    // Every picker entry is intentional, including repeated identical originals.
+    const added = files;
     currentQueue.current = [...currentQueue.current, ...added];
-    setQueue([...currentQueue.current]);
+    setQueue(currentQueue.current);
     setSelectedSend((previous) => [...previous, ...added.map((q) => q.key)]);
     setNotice(
-      `${added.length.toLocaleString()} file${added.length === 1 ? '' : 's'} added. Files are prepared locally before sending.`,
+      `${added.length.toLocaleString()} file${added.length === 1 ? '' : 's'} queued. Reading and integrity checks start when you tap Send.`,
     );
   }
   async function send() {

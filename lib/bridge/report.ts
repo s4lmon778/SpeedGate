@@ -2,6 +2,8 @@ import { isVerified, type RecordFile } from './model';
 export function report(records: RecordFile[], format: 'json' | 'csv' | 'txt') {
   const rows = records.map((f) => ({
     path: f.relativePath,
+    copyId: f.copyId ?? f.id,
+    saveName: f.saveName ?? '',
     bytes: f.size,
     sha256: f.sha256,
     status: f.phase,
@@ -31,6 +33,8 @@ export function report(records: RecordFile[], format: 'json' | 'csv' | 'txt') {
   if (format === 'csv') {
     const columns = [
       'path',
+      'copyId',
+      'saveName',
       'bytes',
       'sha256',
       'status',
@@ -58,7 +62,7 @@ export function report(records: RecordFile[], format: 'json' | 'csv' | 'txt') {
     rows
       .map(
         (r) =>
-          `${r.path}\n${r.bytes} bytes | ${r.status} | ${r.verificationScope}\nSHA-256: ${r.sha256}${r.appHandoff ? `\nApp: ${r.appHandoff}${r.appCopy ? ` | ${r.appCopy}` : ''}` : ''}${r.error ? `\n${r.error}` : ''}`,
+          `${r.path}${r.saveName ? `\nSaved filename: ${r.saveName}` : ''}\nCopy: ${r.copyId}\n${r.bytes} bytes | ${r.status} | ${r.verificationScope}\nSHA-256: ${r.sha256}${r.appHandoff ? `\nApp: ${r.appHandoff}${r.appCopy ? ` | ${r.appCopy}` : ''}` : ''}${r.error ? `\n${r.error}` : ''}`,
       )
       .join('\n\n')
   );

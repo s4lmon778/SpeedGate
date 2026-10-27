@@ -40,10 +40,12 @@ export function hashFile(
     worker!.postMessage({ id, file });
   });
 }
-export async function identity(sha256: string, path: string) {
+export async function identity(sha256: string, path: string, copyId?: string) {
   const hash = await crypto.subtle.digest(
     'SHA-256',
-    new TextEncoder().encode(`${sha256}\n${path}`),
+    new TextEncoder().encode(
+      `${sha256}\n${path}${copyId ? `\n${copyId}` : ''}`,
+    ),
   );
   return [...new Uint8Array(hash)]
     .map((x) => x.toString(16).padStart(2, '0'))

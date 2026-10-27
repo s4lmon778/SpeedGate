@@ -85,3 +85,24 @@ export function nativeShareBatch(
   while (batch.length && !accepts(batch)) batch.pop();
   return batch;
 }
+
+// Use a fresh copy token rather than batch-local numbering. This stays distinct
+// across batches, previous downloads, reloads and separate devices. File bytes,
+// embedded metadata and the original extension remain untouched.
+export function uniqueSaveName(name: string): string {
+  const dot = name.lastIndexOf('.');
+  const extension = dot > 0 ? name.slice(dot) : '';
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const suffix = ` - SpeedGate ${crypto.randomUUID()}`;
+  const encoder = new TextEncoder();
+  // Stay below common filesystem component limits, including UTF-8 Unicode.
+  const budget = 240 - encoder.encode(suffix + extension).length;
+  if (budget < 1)
+    throw new Error('Filename extension is too long to save safely.');
+  let prefix = '';
+  for (const character of stem) {
+    if (encoder.encode(prefix + character).length > budget) break;
+    prefix += character;
+  }
+  return `${prefix || 'file'}${suffix}${extension}`;
+}
